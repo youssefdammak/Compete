@@ -5,22 +5,26 @@ A Next.js TypeScript project for tracking competitor products and pricing using 
 ## Getting Started
 
 1. Install dependencies:
+
 ```bash
 npm install
 ```
 
 2. Set up environment variables:
-Create a `.env.local` file and add:
+   Create a `.env.local` file and add:
+
 ```
 TAURINE_CDP_URL=your_cdp_url_here
 ```
 
 3. Run the scraper:
+
 ```bash
 npm run scrape
 ```
 
 4. Run the development server:
+
 ```bash
 npm run dev
 ```
@@ -46,14 +50,17 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 ## Usage
 
 ### Standalone Script
+
 ```bash
 npm run scrape
 ```
 
 ### API Route
+
 The scraping functionality is also available as a Next.js API route:
 
 **POST Request:**
+
 ```bash
 curl -X POST http://localhost:3000/api/scrape \
   -H "Content-Type: application/json" \
@@ -65,7 +72,7 @@ curl -X POST http://localhost:3000/api/scrape \
 ```
 
 **GET Request:**
+
 ```bash
 curl "http://localhost:3000/api/scrape?competitor=Nike&productName=Air%20Jordan%201&productUrl=https://www.nike.com/air-jordan-1"
 ```
-

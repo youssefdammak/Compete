@@ -6,4 +6,3 @@ declare namespace NodeJS {
     NODE_ENV: "development" | "production" | "test";
   }
 }
-

@@ -1,4 +1,4 @@
-declare module 'patchright' {
+declare module "patchright" {
   export interface Browser {
     contexts(): BrowserContext[];
     newContext(options?: unknown): Promise<BrowserContext>;
@@ -14,7 +14,10 @@ declare module 'patchright' {
   export interface Page {
     goto(url: string, options?: { waitUntil?: string }): Promise<void>;
     locator(selector: string): Locator;
-    waitForSelector(selector: string, options?: { timeout?: number }): Promise<void>;
+    waitForSelector(
+      selector: string,
+      options?: { timeout?: number }
+    ): Promise<void>;
     close(options?: { runBeforeUnload?: boolean }): Promise<void>;
     isClosed(): boolean;
   }
@@ -28,4 +31,3 @@ declare module 'patchright' {
     connectOverCDP(endpointURL: string): Promise<Browser>;
   };
 }
-
