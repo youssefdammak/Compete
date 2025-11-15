@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { firebaseConfig } from "@/lib/firebase-client";
 
 if (!getApps().length) {
@@ -16,6 +16,9 @@ export default function AuthPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
+  // New fields for signup
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,7 +30,16 @@ export default function AuthPage() {
         await signInWithEmailAndPassword(auth, email, password);
         setSuccess("Logged in successfully!");
       } else {
-        await createUserWithEmailAndPassword(auth, email, password);
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        // Save name and phone to Firebase user profile
+        await updateProfile(cred.user, {
+          displayName: name,
+          // Firebase Auth does not have a phone field by default, so we can store it in user metadata or a custom claim if needed
+        });
+        // Optionally, save phone to localStorage or a database for now
+        if (phone) {
+          localStorage.setItem(`user_phone_${cred.user.uid}`, phone);
+        }
         setSuccess("Account created! You are now logged in.");
       }
     } catch (err: any) {
@@ -44,6 +56,26 @@ export default function AuthPage() {
           {isLogin ? "Login to Compete" : "Sign Up for Compete"}
         </h1>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLogin && (
+            <>
+              <input
+                type="text"
+                placeholder="Full Name"
+                className="w-full px-4 py-2 rounded border border-[var(--input)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                required
+              />
+              <input
+                type="tel"
+                placeholder="Phone Number"
+                className="w-full px-4 py-2 rounded border border-[var(--input)] bg-[var(--background)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                required
+              />
+            </>
+          )}
           <input
             type="email"
             placeholder="Email"

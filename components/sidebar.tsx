@@ -111,24 +111,25 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Bottom Section: User Info */}
+      {/* Bottom Section: User Info (clickable) */}
       <div className="absolute bottom-0 left-0 right-0 border-t border-border bg-card/50 p-4">
-        <div className="flex items-center gap-3 rounded-lg bg-accent/50 px-3 py-2">
+        <a href="/profile" className="flex items-center gap-3 rounded-lg bg-accent/50 px-3 py-2 hover:bg-accent transition group cursor-pointer">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
             {initials}
           </div>
           <div className="flex-1 overflow-hidden">
-            <p className="truncate text-sm font-medium text-foreground">{displayName}</p>
+            <p className="truncate text-sm font-medium text-foreground group-hover:underline">{displayName}</p>
             <p className="truncate text-xs text-muted-foreground">{email}</p>
           </div>
           <button
             onClick={handleLogout}
             className="ml-2 text-xs text-destructive hover:underline"
             title="Sign out"
+            tabIndex={-1}
           >
             Sign out
           </button>
-        </div>
+        </a>
       </div>
     </aside>
   )
