@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Activity, TrendingUp, Settings, Bell, Users, Package } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/lib/auth-context'
+import { getAuth, signOut } from 'firebase/auth'
 
 const navItems = [
   {
@@ -45,9 +47,22 @@ const navItems = [
     icon: Settings
   }
 ]
-
 export function Sidebar() {
   const pathname = usePathname()
+  const { user } = useAuth()
+  const displayName = user?.displayName || user?.email?.split("@")[0] || "User"
+  const email = user?.email || ""
+  // Get initials for avatar
+  const initials = displayName
+    .split(" ")
+    .map((n) => n[0]?.toUpperCase())
+    .join("")
+    .slice(0, 2)
+
+  const handleLogout = async () => {
+    const auth = getAuth()
+    await signOut(auth)
+  }
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-border bg-card">
@@ -68,7 +83,6 @@ export function Sidebar() {
         {navItems.map((item) => {
           const isActive = pathname === item.href
           const Icon = item.icon
-          
           return (
             <Link
               key={item.href}
@@ -97,17 +111,25 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Bottom Section */}
+      {/* Bottom Section: User Info (clickable) */}
       <div className="absolute bottom-0 left-0 right-0 border-t border-border bg-card/50 p-4">
-        <div className="flex items-center gap-3 rounded-lg bg-accent/50 px-3 py-2">
+        <a href="/profile" className="flex items-center gap-3 rounded-lg bg-accent/50 px-3 py-2 hover:bg-accent transition group cursor-pointer">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
-            JD
+            {initials}
           </div>
           <div className="flex-1 overflow-hidden">
-            <p className="truncate text-sm font-medium text-foreground">John Doe</p>
-            <p className="truncate text-xs text-muted-foreground">john@company.com</p>
+            <p className="truncate text-sm font-medium text-foreground group-hover:underline">{displayName}</p>
+            <p className="truncate text-xs text-muted-foreground">{email}</p>
           </div>
-        </div>
+          <button
+            onClick={handleLogout}
+            className="ml-2 text-xs text-destructive hover:underline"
+            title="Sign out"
+            tabIndex={-1}
+          >
+            Sign out
+          </button>
+        </a>
       </div>
     </aside>
   )

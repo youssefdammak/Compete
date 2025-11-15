@@ -53,11 +53,6 @@ export function CompetitorCard({ competitor, onClick }: CompetitorCardProps) {
       {/* Stats */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Avg Price Range</span>
-          <span className="text-sm font-medium text-foreground">{competitor.avgPriceRange}</span>
-        </div>
-
-        <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Avg Rating</span>
           <div className="flex items-center gap-1">
             <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
@@ -66,11 +61,21 @@ export function CompetitorCard({ competitor, onClick }: CompetitorCardProps) {
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Tracked Products</span>
+          <span className="text-sm text-muted-foreground">Items Sold</span>
           <div className="flex items-center gap-1">
             <Package className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium text-foreground">{competitor.trackedProducts}</span>
+            <span className="text-sm font-medium text-foreground">{competitor.trackedProducts?.toLocaleString() || 0}</span>
           </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">Followers</span>
+          <span className="text-sm font-medium text-foreground">{competitor.followers?.toLocaleString() || "N/A"}</span>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">Feedback</span>
+          <span className="text-sm font-medium text-foreground">{competitor.feedback || "N/A"}</span>
         </div>
       </div>
     </Card>
