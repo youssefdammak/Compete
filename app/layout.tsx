@@ -1,8 +1,7 @@
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
-import { Analytics } from "@vercel/analytics/next"
-import { Sidebar } from "@/components/sidebar"
 import "./globals.css"
+import ClientLayout from "./ClientLayout"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -29,6 +28,30 @@ export const metadata: Metadata = {
   },
 }
 
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    // If not loading, not logged in, and not on /auth, redirect to /auth
+    if (!loading && !user && pathname !== "/auth") {
+      router.replace("/auth");
+    }
+    // If logged in and on /auth, redirect to dashboard
+    if (!loading && user && pathname === "/auth") {
+      router.replace("/");
+    }
+  }, [user, loading, pathname, router]);
+
+  // Show nothing while loading or redirecting
+  if (loading || (!user && pathname !== "/auth")) {
+    return null;
+  }
+  return <>{children}</>;
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -37,11 +60,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${inter.className} antialiased`}>
-        <Sidebar />
-        <div className="ml-64">
-          {children}
-        </div>
-        <Analytics />
+        <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
   )
