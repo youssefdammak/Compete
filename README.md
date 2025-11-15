@@ -14,7 +14,8 @@ npm install
    Create a `.env.local` file and add:
 
 ```
-TAURINE_CDP_URL=your_cdp_url_here
+BROWSER_API_KEY=your_browser_api_key_here
+AGENT_API_KEY=your_agent_api_key_here  # Optional, for dynamic page scraping
 ```
 
 3. Run the scraper:
@@ -35,9 +36,10 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 - `app/` - Next.js app directory with TypeScript React components
   - `api/scrape/route.ts` - API route for scraping (POST/GET endpoints)
-- `lib/scraper.ts` - Reusable scraping functions (used by both script and API)
+- `lib/` - Shared libraries
+  - `scraper.ts` - Main scraping functions using BrowserSDK and Playwright
+  - `browser-sdk.ts` - BrowserSDK implementation for browser.cash API
 - `scripts/scrape.ts` - Standalone TypeScript scraping script
-- `types/` - TypeScript type definitions
 
 ## Scripts
 

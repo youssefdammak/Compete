@@ -1,27 +1,9 @@
-import { chromium, Browser, BrowserContext, Page } from "patchright";
+import { chromium, Browser, BrowserContext, Page } from "playwright";
+import { BrowserSDK } from "./browser-sdk";
 
-// Next.js environment variable handling
-const DEFAULT_CDP_URL = process.env.TAURINE_CDP_URL;
-
-export interface ConnectResult {
-  browser: Browser;
-  context: BrowserContext;
-  page: Page;
-  cleanup: () => Promise<void>;
-}
-
-export interface StaticData {
-  name: string | null;
-  category: string | null;
-  image_url: string | null;
-}
-
-export interface DynamicData {
-  price: number;
-  stock_status: string;
-  rating: number;
-  review_count: number;
-}
+const AGENT_API_URL = "https://agent-api.browser.cash/v1/task/create";
+const AGENT_API_KEY = process.env.AGENT_API_KEY;
+const BROWSER_API_KEY = process.env.BROWSER_API_KEY;
 
 export interface ProductData {
   competitor: string;
@@ -32,11 +14,11 @@ export interface ProductData {
     category: string | null;
     image_url: string | null;
     current: {
-      price: number;
+      price: number | null;
       currency: string;
-      stock_status: string;
-      rating: number;
-      review_count: number;
+      stock_status: string | null;
+      rating: number | null;
+      review_count: number | null;
       last_checked: string;
     };
     history: unknown[];
@@ -44,137 +26,151 @@ export interface ProductData {
   };
 }
 
+export interface AgentTaskResult {
+  [key: string]: unknown;
+}
+
 // -----------------------------
-// Helper: connect to CDP
+// Agent API helper
 // -----------------------------
-export async function connect({
-  cdpUrl = DEFAULT_CDP_URL,
-  contextOptions = {},
-}: {
-  cdpUrl?: string;
-  contextOptions?: unknown;
-} = {}): Promise<ConnectResult> {
-  if (!cdpUrl) {
-    throw new Error(
-      "CDP URL is required. Set TAURINE_CDP_URL environment variable."
-    );
+export async function runAgentTask(
+  url: string,
+  instructions: string
+): Promise<AgentTaskResult> {
+  if (!AGENT_API_KEY) {
+    console.warn("AGENT_API_KEY not set, skipping Agent API call");
+    return {};
   }
 
-  const browser = await chromium.connectOverCDP(cdpUrl.trim());
-  const context =
-    browser.contexts()[0] || (await browser.newContext(contextOptions));
-  const page = context.pages()[0] || (await context.newPage());
+  const resp = await fetch(AGENT_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${AGENT_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      agent: "gemini",
+      prompt: instructions,
+      mode: "text",
+      stepLimit: 10,
+    }),
+  });
 
-  async function cleanup(): Promise<void> {
-    try {
-      if (!page.isClosed()) await page.close({ runBeforeUnload: false });
-    } catch {}
-    try {
-      if (!context.isClosed()) await context.close();
-    } catch {}
+  if (!resp.ok) {
+    const error = await resp.text();
+    throw new Error(`Agent API error: ${error}`);
   }
 
-  return { browser, context, page, cleanup };
+  return await resp.json();
 }
 
 // -----------------------------
-// Scrape static info using CDP
-// -----------------------------
-export async function fetchStaticData(
-  page: Page,
-  url: string
-): Promise<StaticData> {
-  await page.goto(url, { waitUntil: "domcontentloaded" });
-  const name = await page
-    .locator("h1.product-title")
-    .textContent()
-    .catch(() => null);
-  const category = await page
-    .locator(".breadcrumb li:last-child")
-    .textContent()
-    .catch(() => null);
-  const image_url = await page
-    .locator(".product-image img")
-    .getAttribute("src")
-    .catch(() => null);
-
-  return { name, category, image_url };
-}
-
-// -----------------------------
-// Scrape dynamic info (Agent API style)
-// -----------------------------
-export async function fetchDynamicData(page: Page): Promise<DynamicData> {
-  // Wait for price and stock info
-  await page
-    .waitForSelector(".product-price", { timeout: 5000 })
-    .catch(() => {});
-  await page
-    .waitForSelector(".availability-status", { timeout: 5000 })
-    .catch(() => {});
-
-  const priceText = await page
-    .locator(".product-price")
-    .textContent()
-    .catch(() => "0");
-  const stock_status = await page
-    .locator(".availability-status")
-    .textContent()
-    .catch(() => "Unknown");
-  const rating = await page
-    .locator(".product-rating")
-    .textContent()
-    .catch(() => "0");
-  const review_count = await page
-    .locator(".review-count")
-    .textContent()
-    .catch(() => "0");
-
-  const price = parseFloat(priceText.replace(/[^0-9.]/g, "")) || 0;
-
-  return {
-    price,
-    stock_status,
-    rating: parseFloat(rating) || 0,
-    review_count: parseInt(review_count, 10) || 0,
-  };
-}
-
-// -----------------------------
-// Build Golden JSON
+// Product tracking
 // -----------------------------
 export async function trackProduct(
   competitor: string,
   productName: string,
   productUrl: string
 ): Promise<ProductData> {
-  const { browser, page, cleanup } = await connect();
+  if (!BROWSER_API_KEY) {
+    throw new Error(
+      "BROWSER_API_KEY is required. Set it in your environment variables."
+    );
+  }
+
+  // 1️⃣ Browser API: create session and get CDP URL
+  const sdk = new BrowserSDK(BROWSER_API_KEY);
+  const session = await sdk.createSession({}); // optionally add region
+  console.log(`Browser session created: ${session.sessionId}`);
+
+  const cdpUrl = await sdk.getBrowserCDPUrl(session.sessionId);
+  console.log(`CDP URL: ${cdpUrl}`);
+
+  // 2️⃣ Connect Playwright via CDP
+  const browser = await chromium.connectOverCDP(cdpUrl);
+  const context = browser.contexts()[0] || (await browser.newContext());
+  const page = context.pages()[0] || (await context.newPage());
 
   try {
-    const staticData = await fetchStaticData(page, productUrl);
-    const dynamicData = await fetchDynamicData(page);
+    await page.goto(productUrl, { waitUntil: "domcontentloaded" });
 
-    return {
+    // ------------------------
+    // 3️⃣ Optional: run Agent API if page is dynamic
+    // ------------------------
+    let agentResult: AgentTaskResult = {};
+    try {
+      agentResult = await runAgentTask(
+        productUrl,
+        `Extract product info for "${productName}" including price, stock, rating, image URL, and category`
+      );
+      console.log("Agent API result:", agentResult);
+    } catch (error) {
+      console.warn("Agent API failed, continuing with static scraping:", error);
+    }
+
+    // ------------------------
+    // 4️⃣ Extract data via CDP (static scraping)
+    // ------------------------
+    const name =
+      (await page
+        .locator("h1.product-title")
+        .textContent()
+        .catch(() => null)) || productName;
+    const category = await page
+      .locator(".breadcrumb li:last-child")
+      .textContent()
+      .catch(() => null);
+    const priceText = await page
+      .locator(".product-price")
+      .textContent()
+      .catch(() => null);
+    const stock = await page
+      .locator(".availability-status")
+      .textContent()
+      .catch(() => null);
+    const ratingText = await page
+      .locator(".product-rating")
+      .textContent()
+      .catch(() => "0");
+    const reviewText = await page
+      .locator(".review-count")
+      .textContent()
+      .catch(() => "0");
+    const imageUrl = await page
+      .locator(".product-image img")
+      .getAttribute("src")
+      .catch(() => null);
+
+    const price = priceText
+      ? parseFloat(priceText.replace(/[^0-9.]/g, ""))
+      : null;
+    const rating = ratingText ? parseFloat(ratingText) || null : null;
+    const reviews = reviewText ? parseInt(reviewText, 10) || null : null;
+
+    const result: ProductData = {
       competitor,
       product: {
         id: productName.replace(/\s+/g, "-").toUpperCase(),
-        name: staticData.name,
+        name,
         url: productUrl,
-        category: staticData.category,
-        image_url: staticData.image_url,
+        category,
+        image_url: imageUrl,
         current: {
-          price: dynamicData.price,
+          price,
           currency: "USD",
-          stock_status: dynamicData.stock_status,
-          rating: dynamicData.rating,
-          review_count: dynamicData.review_count,
+          stock_status: stock,
+          rating,
+          review_count: reviews,
           last_checked: new Date().toISOString(),
         },
         history: [],
         alerts: [],
       },
     };
+
+    console.log("Product JSON:", JSON.stringify(result, null, 2));
+    return result;
   } finally {
-    await cleanup();
+    await browser.close();
   }
 }

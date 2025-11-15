@@ -2,7 +2,9 @@
 
 declare namespace NodeJS {
   interface ProcessEnv {
-    TAURINE_CDP_URL?: string;
+    AGENT_API_KEY?: string;
+    BROWSER_API_KEY?: string;
+    BROWSER_API_BASE_URL?: string;
     NODE_ENV: "development" | "production" | "test";
   }
 }
