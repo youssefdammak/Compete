@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { EventFilterBar } from '@/components/event-filter-bar'
 import { EventItem } from '@/components/event-item'
 import { EventStats } from '@/components/event-stats'
+import { updateCompetitor } from '@/jobs/updateCompetitors'
 
 export type EventType = 'price_drop' | 'price_increase' | 'stock_change' | 'alert' | 'new_product'
 
@@ -136,6 +137,10 @@ export default function LiveFeedPage() {
   const [selectedCompetitor, setSelectedCompetitor] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<'feed' | 'condensed'>('feed')
+
+  useEffect(() => {
+    updateCompetitor('https://www.ebay.ca/str/surplusbydesign')
+  }, []);
 
   // Filter events based on selections
   const filteredEvents = useMemo(() => {

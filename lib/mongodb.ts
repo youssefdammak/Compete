@@ -10,28 +10,18 @@ const uri = process.env.MONGODB_URI;
 
 // MongoDB Atlas optimized connection options
 const options: MongoClientOptions = {
-  // Connection pool settings optimized for Atlas
-  maxPoolSize: 10, // Maintain up to 10 socket connections
-  minPoolSize: 2, // Maintain at least 2 socket connections
-  maxIdleTimeMS: 30000, // Close connections after 30 seconds of inactivity
-
-  // Server selection and timeout settings
-  serverSelectionTimeoutMS: 5000, // How long to try selecting a server
-  socketTimeoutMS: 45000, // How long a send or receive on a socket can take before timeout
-
-  // Retry settings for Atlas
-  retryWrites: true, // Enable retryable writes
-  retryReads: true, // Enable retryable reads
-
-  // Compression (Atlas supports compression)
+  maxPoolSize: 10,
+  minPoolSize: 2,
+  maxIdleTimeMS: 300000,
+  serverSelectionTimeoutMS: 30000, // increased from 5000
+  socketTimeoutMS: 45000,
+  retryWrites: true,
+  retryReads: true,
   compressors: ["zlib"] as any,
-
-  // Write concern for Atlas
   w: "majority",
-
-  // Read preference
   readPreference: "primary",
 };
+
 
 let client: MongoClient;
 let clientPromise: Promise<MongoClient>;
