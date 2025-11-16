@@ -1,5 +1,7 @@
 import { MongoClient, Db, MongoClientOptions } from "mongodb";
+import dotenv from "dotenv";
 
+dotenv.config();
 if (!process.env.MONGODB_URI) {
   throw new Error(
     "Please add your MongoDB Atlas connection string to .env.local as MONGODB_URI"
@@ -21,7 +23,6 @@ const options: MongoClientOptions = {
   w: "majority",
   readPreference: "primary",
 };
-
 
 let client: MongoClient;
 let clientPromise: Promise<MongoClient>;

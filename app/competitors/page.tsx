@@ -37,7 +37,7 @@ export default function CompetitorsPage() {
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAddingCompetitor, setIsAddingCompetitor] = useState(false);
-
+ const [refresher, setRefresher] = useState(false);
   // FILTER STATES
   const [brandPositioningFilters, setBrandPositioningFilters] = useState<string[]>([]);
   const [minRating, setMinRating] = useState(0);
@@ -81,7 +81,7 @@ export default function CompetitorsPage() {
     };
 
     fetchCompetitors();
-  }, [stableToken]);
+  }, [stableToken, refresher]);
 
 
   // ---------------------- ➕ FIXED Add Competitor ----------------------
@@ -344,6 +344,7 @@ export default function CompetitorsPage() {
         onClose={() => setShowAddModal(false)}
         isLoading={isAddingCompetitor}
         token = {stableToken!}
+        setRefresher={setRefresher}
       />
     </div>
   );

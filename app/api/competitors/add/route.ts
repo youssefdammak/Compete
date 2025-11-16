@@ -4,7 +4,6 @@ import { getDb } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { adminAuth } from "@/lib/firebaseAdmin";
 import { getUserFromRequest } from "@/lib/getUserFromRequest";
-
 export const runtime = "nodejs";
 
 /* --------------------------- 📌 POST — Add Competitor --------------------------- */
@@ -70,9 +69,10 @@ export async function POST(request: NextRequest) {
     });
 
     if (existing) {
-      await collection.updateOne(
+      const result =await collection.updateOne(
         { _id: existing._id },
         { $set: { ...competitor, updatedAt: new Date() } }
+
       );
 
       return NextResponse.json({

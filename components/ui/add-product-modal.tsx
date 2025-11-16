@@ -11,32 +11,46 @@ interface AddProductModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+    setRefresher?: () => void;
+
+}
+
+interface Competitor {
+  id: string;
+  name: string;
+  logo?: string;
+  firstTenItems?: { title: string; link: string }[];
 }
 
 export default function AddProductModal({
   open,
   onClose,
   onSuccess,
+  setRefresher
 }: AddProductModalProps) {
   const [step, setStep] = useState<1 | 2>(1);
   const [filter, setFilter] = useState("");
-  const [selectedCompetitor, setSelectedCompetitor] = useState<string | null>(
-    null
-  );
+  const [selectedCompetitor, setSelectedCompetitor] =
+    useState<Competitor | null>(null);
+
   const [productUrl, setProductUrl] = useState("");
   const [topItems, setTopItems] = useState<{ title: string; link: string }[]>(
     []
   );
   const [selectedTopItem, setSelectedTopItem] = useState<string>("manual");
+
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [competitors, setCompetitors] = useState<string[]>([]);
+  const [competitors, setCompetitors] = useState<Competitor[]>([]);
   const [isLoadingCompetitors, setIsLoadingCompetitors] = useState(false);
 
   const { user, token, loading: authLoading } = useCurrentUser();
 
+  // -------------------------------------------------
+  // Fetch Competitors
+  // -------------------------------------------------
   useEffect(() => {
-    if (authLoading || !user || !token) return; // wait until user & token are ready
+    if (!open || authLoading || !user || !token) return;
 
     const fetchCompetitors = async () => {
       setIsLoadingCompetitors(true);
@@ -44,70 +58,75 @@ export default function AddProductModal({
         const res = await fetch("/api/competitors", {
           headers: { Authorization: `Bearer ${token}` },
         });
-
-        if (!res.ok) {
-          console.error("Failed to fetch competitors:", res.status);
-          return;
-        }
+        if (!res.ok) throw new Error("Failed to fetch competitors");
 
         const json = await res.json();
-        if (json && Array.isArray(json.data)) {
-          // store competitors as strings
-          const names = json.data.map((c: any) => c.name).filter(Boolean);
-          setCompetitors(names);
-        }
+        if (json && Array.isArray(json.data)) setCompetitors(json.data);
       } catch (err) {
         console.error("Error fetching competitors:", err);
+        setError("Failed to load competitors.");
       } finally {
         setIsLoadingCompetitors(false);
+        setRefresher((prev) => !prev);
       }
     };
 
     fetchCompetitors();
-  }, [authLoading, user, token, open]);
+  }, [open, authLoading, user, token]);
 
+  // -------------------------------------------------
+  // Reset modal state
+  // -------------------------------------------------
   const reset = () => {
     setStep(1);
     setFilter("");
     setSelectedCompetitor(null);
     setProductUrl("");
-    setError(null);
-    setIsSubmitting(false);
     setTopItems([]);
     setSelectedTopItem("manual");
+    setError(null);
+    setIsSubmitting(false);
   };
 
   const handleClose = () => {
-    if (isSubmitting) return;
     reset();
     onClose();
   };
 
   if (!open) return null;
 
-  // ✅ fix here: competitors are strings now
-  const filtered = competitors.filter((comp) =>
-    comp.toLowerCase().includes(filter.toLowerCase())
+  const filteredCompetitors = competitors.filter((comp) =>
+    comp.name.toLowerCase().includes(filter.toLowerCase())
   );
 
-  const validateUrl = (urlString: string) => {
+  const validateUrl = (url: string) => {
     try {
-      new URL(urlString);
+      new URL(url);
       return true;
     } catch {
       return false;
     }
   };
 
-  const handleSelectCompetitor = (compName: string) => {
-    setSelectedCompetitor(compName);
+  // -------------------------------------------------
+  // Select a competitor
+  // -------------------------------------------------
+  const handleSelectCompetitor = (comp: Competitor) => {
+    setSelectedCompetitor(comp);
     setStep(2);
     setError(null);
-    setTopItems([]); // clear top items for now
+
+    if (comp.firstTenItems && Array.isArray(comp.firstTenItems))
+      setTopItems(comp.firstTenItems);
+    else setTopItems([]);
+
     setSelectedTopItem("manual");
     setProductUrl("");
   };
 
+  // -------------------------------------------------
+  // Submit product URL
+  // -------------------------------------------------
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     setError(null);
@@ -116,12 +135,10 @@ export default function AddProductModal({
       setError("Please select a competitor");
       return;
     }
-
     if (!productUrl.trim()) {
       setError("Please enter a product URL");
       return;
     }
-
     if (!validateUrl(productUrl.trim())) {
       setError("Please enter a valid URL");
       return;
@@ -130,34 +147,37 @@ export default function AddProductModal({
     setIsSubmitting(true);
 
     try {
-      const saveRes = await fetch("/api/products", {
+      const res = await fetch("/api/products", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
-          competitor: selectedCompetitor,
+          competitor: selectedCompetitor.name,
           productUrl: productUrl.trim(),
         }),
       });
 
-      if (!saveRes.ok) {
-        const data = await saveRes.json().catch(() => null);
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
         throw new Error((data && data.error) || "Failed to save product");
       }
-
-      const result = await saveRes.json();
-      console.log("✅ Product saved:", result);
 
       onSuccess?.();
       reset();
       onClose();
     } catch (err) {
+      console.error(err);
       setError(err instanceof Error ? err.message : "An error occurred");
-      console.error("AddProductModal error:", err);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // -------------------------------------------------
+  // Render
+  // -------------------------------------------------
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="bg-card border border-border rounded-lg shadow-xl max-w-md w-full">
@@ -167,12 +187,7 @@ export default function AddProductModal({
             <Plus className="h-5 w-5 text-primary" />
             <h2 className="text-xl font-bold text-foreground">Add Product</h2>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleClose}
-            disabled={isSubmitting}
-          >
+          <Button variant="ghost" size="icon" onClick={handleClose}>
             <X className="h-5 w-5" />
           </Button>
         </div>
@@ -180,23 +195,21 @@ export default function AddProductModal({
         {/* Body */}
         <div className="p-6 space-y-4">
           {step === 1 ? (
-            <div className="space-y-4">
-              <div>
-                <Label
-                  htmlFor="competitor-filter"
-                  className="text-sm font-medium"
-                >
-                  Select Competitor
-                </Label>
-                <Input
-                  id="competitor-filter"
-                  placeholder="Filter competitors..."
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
-                  className="mt-2"
-                  disabled={isLoadingCompetitors}
-                />
-              </div>
+            <>
+              <Label
+                htmlFor="competitor-filter"
+                className="text-sm font-medium"
+              >
+                Select Competitor
+              </Label>
+              <Input
+                id="competitor-filter"
+                placeholder="Filter competitors..."
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                disabled={isLoadingCompetitors}
+                className="mt-2"
+              />
 
               {isLoadingCompetitors ? (
                 <div className="flex items-center justify-center py-8">
@@ -205,60 +218,97 @@ export default function AddProductModal({
                     Loading competitors...
                   </span>
                 </div>
-              ) : filtered.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-sm text-muted-foreground">
-                    {competitors.length === 0
-                      ? "No competitors found. Please add competitors first."
-                      : "No matches found"}
-                  </p>
+              ) : filteredCompetitors.length === 0 ? (
+                <div className="text-center py-8 text-sm text-muted-foreground">
+                  {competitors.length === 0
+                    ? "No competitors found."
+                    : "No matches found"}
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-                  {filtered.map((comp, idx) => (
+                  {filteredCompetitors.map((comp) => (
                     <button
-                      key={idx}
+                      key={comp.id}
                       type="button"
                       onClick={() => handleSelectCompetitor(comp)}
                       className="text-left rounded-lg border border-border p-3 hover:border-primary/50 transition-colors"
                     >
-                      <div className="font-medium text-foreground">{comp}</div>
+                      <div className="font-medium text-foreground">
+                        {comp.name}
+                      </div>
                     </button>
                   ))}
                 </div>
               )}
-            </div>
+            </>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label className="text-sm font-medium">Competitor</Label>
-                <div className="mt-2">
-                  <div className="rounded-lg border border-border bg-muted/10 p-3">
-                    {selectedCompetitor}
-                  </div>
-                </div>
+              <Label className="text-sm font-medium">Competitor</Label>
+              <div className="rounded-lg border border-border bg-muted/10 p-3">
+                {selectedCompetitor?.name}
               </div>
 
-              <div>
-                <Label htmlFor="product-url">Product URL</Label>
-                <Input
-                  id="product-url"
-                  placeholder="https://www.ebay.ca/itm/..."
-                  value={productUrl}
-                  onChange={(e) => {
-                    setProductUrl(e.target.value);
-                    setSelectedTopItem("manual");
-                  }}
-                  disabled={isSubmitting}
-                  className="mt-3"
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  Paste the product URL
-                </p>
-              </div>
+              <Label htmlFor="product-url">Product URL</Label>
+
+              {topItems.length > 0 && (
+                <div className="mt-3 space-y-1 max-h-56 overflow-y-auto pr-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedTopItem("manual");
+                      setProductUrl("");
+                    }}
+                    className={`w-full p-3 rounded-lg border-2 ${
+                      selectedTopItem === "manual"
+                        ? "border-primary bg-primary/10"
+                        : "border-border bg-muted/30"
+                    }`}
+                  >
+                    ✏️ Manual URL
+                  </button>
+
+                  <div className="h-px bg-border"></div>
+
+                  {topItems.map((it, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTopItem(it.link);
+                        setProductUrl(it.link);
+                      }}
+                      className={`w-full p-3 rounded-lg border-2 ${
+                        selectedTopItem === it.link
+                          ? "border-primary bg-primary/10"
+                          : "border-transparent bg-muted/20 hover:bg-muted/40"
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <span className="text-xs font-bold text-primary">
+                          {idx + 1}
+                        </span>
+                        <div className="font-medium text-sm truncate">
+                          {it.title}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <Input
+                id="product-url"
+                placeholder="https://www.ebay.ca/itm/..."
+                value={productUrl}
+                onChange={(e) => {
+                  setProductUrl(e.target.value);
+                  setSelectedTopItem("manual");
+                }}
+                className="mt-3"
+              />
 
               {error && (
-                <div className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 p-3 rounded-md">
+                <div className="text-sm text-red-500 p-3 bg-red-50 rounded-md">
                   {error}
                 </div>
               )}
@@ -268,21 +318,17 @@ export default function AddProductModal({
                   type="button"
                   variant="outline"
                   onClick={() => setStep(1)}
-                  disabled={isSubmitting}
                   className="flex-1"
                 >
                   Back
                 </Button>
                 <Button
                   type="submit"
-                  disabled={isSubmitting || !productUrl.trim()}
+                  disabled={!productUrl.trim()}
                   className="flex-1"
                 >
                   {isSubmitting ? (
-                    <>
-                      <Loader className="mr-2 h-4 w-4 animate-spin" />
-                      Adding...
-                    </>
+                    <Loader className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     "Add Product"
                   )}

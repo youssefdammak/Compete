@@ -12,7 +12,6 @@ import PillFilters from "@/components/pill-filters";
 import SortDropdown from "@/components/sort-dropdown";
 import AddProductModal from "@/components/ui/add-product-modal";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-
 export type Product = {
   id: string;
   name: string;
@@ -53,7 +52,15 @@ export default function ProductsPage() {
   const [addProductModalOpen, setAddProductModalOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { user, token, loading: authLoading } = useCurrentUser();
+  const [stableToken, setStableToken] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!authLoading && token) {
+      console.log("🔐 Stable token ready:", token);
+      setStableToken(token);
+    }
+  }, [authLoading, token]);
   // Filters
   const [selectedCompetitors, setSelectedCompetitors] = useState<string[]>([]);
   const [competitors, setCompetitors] = useState<string[]>([]);
@@ -61,6 +68,7 @@ export default function ProductsPage() {
   const [minRating, setMinRating] = useState(0);
   const [stockFilter, setStockFilter] = useState<string[]>([]);
   const [showDiscountedOnly, setShowDiscountedOnly] = useState(false);
+  const [refresher, setRefresher] = useState(false);
 
   // Quick filters
   const [quickFilters, setQuickFilters] = useState({
@@ -68,14 +76,14 @@ export default function ProductsPage() {
     discounted: false,
     rating4Plus: false,
   });
-  const { user, token, loading: authLoading } = useCurrentUser();
+
   // Fetch products from API
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         setIsLoading(true);
         const response = await fetch("/api/products", {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${stableToken}` },
         });
 
         if (!response.ok) {
@@ -94,22 +102,16 @@ export default function ProductsPage() {
     };
 
     fetchProducts();
-  }, [authLoading, user, token]);
-  
-  useEffect(() => {
-    if (authLoading || !user || !token) return; // wait until user & token are ready
+  }, [refresher, stableToken]);
 
+  // Fetch competitors for filters
+  useEffect(() => {
     const fetchCompetitors = async () => {
       try {
         const res = await fetch("/api/competitors", {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${stableToken}` },
         });
-
-        if (!res.ok) {
-          console.error("Failed to fetch competitors:", res.status);
-          return;
-        }
-
+        if (!res.ok) return;
         const json = await res.json();
         if (json && Array.isArray(json.data)) {
           const names = json.data.map((c: any) => c.name).filter(Boolean);
@@ -121,8 +123,7 @@ export default function ProductsPage() {
     };
 
     fetchCompetitors();
-  }, [authLoading, user, token]);
-
+  }, []);
 
   // Filter and sort products
   const filteredProducts = products.filter((product) => {
@@ -197,7 +198,9 @@ export default function ProductsPage() {
   const handleAddProductSuccess = async () => {
     // Refresh products list after adding
     try {
-      const response = await fetch("/api/products");
+      const response = await fetch("/api/products", {
+        headers: { Authorization: `Bearer ${stableToken}` },
+      });
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
@@ -348,6 +351,7 @@ export default function ProductsPage() {
         open={addProductModalOpen}
         onClose={() => setAddProductModalOpen(false)}
         onSuccess={handleAddProductSuccess}
+        setRefresher={setRefresher}
       />
     </div>
   );

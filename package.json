@@ -3,9 +3,11 @@
     "version": "0.1.0",
     "private": true,
     "scripts": {
-    "dev": "next dev",
+        "dev": "next dev",
         "build": "next build",
+        "run": "concurrently \"npm run dev\" \"npm run runScript\"",
         "start": "next start",
+        "runScript": "tsx scripts/refreshScript.ts",
         "lint": "next lint",
         "scrape": "tsx scripts/scrape.ts",
         "cron": "tsx jobs/cronWorker.ts"
@@ -33,6 +35,7 @@
         "lucide-react": "^0.553.0",
         "mongodb": "^6.21.0",
         "next": "^16.0.3",
+        "node-cron": "^4.2.1",
         "node-fetch": "^3.3.2",
         "openai": "^6.9.0",
         "patchright": "^1.56.1",
@@ -51,6 +54,7 @@
         "@types/react": "^18.3.3",
         "@types/react-dom": "^18.3.0",
         "autoprefixer": "^10.4.22",
+        "concurrently": "^9.2.1",
         "dotenv": "^16.6.1",
         "eslint": "^8.57.0",
         "eslint-config-next": "^14.2.5",

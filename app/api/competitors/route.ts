@@ -162,3 +162,57 @@ export async function PATCH(request: NextRequest) {
     );
   }
 }
+// DELETE - Remove competitor by ID
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const competitorId = searchParams.get("id");
+
+    if (!competitorId) {
+      return NextResponse.json(
+        { error: "Missing required parameter: id" },
+        { status: 400 }
+      );
+    }
+
+    const db = await getDb();
+    const collection = db.collection("competitors");
+
+    // Ensure valid ObjectId
+    let objectId: ObjectId;
+    try {
+      objectId = new ObjectId(competitorId);
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid competitor id" },
+        { status: 400 }
+      );
+    }
+
+    // Attempt delete
+    const result = await collection.deleteOne({ _id: objectId });
+    if (result.deletedCount === 0) {
+      return NextResponse.json(
+        { error: "Competitor not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Competitor deleted successfully",
+      id: competitorId,
+    });
+  } catch (error) {
+    console.error("Error deleting competitor:", error);
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to delete competitor",
+      },
+      { status: 500 }
+    );
+  }
+}
