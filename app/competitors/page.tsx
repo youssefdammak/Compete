@@ -1,54 +1,94 @@
-"use client"
+"use client";
 
-import { useState, useMemo } from "react"
-import { LayoutGrid, List, Search, SlidersHorizontal, Plus } from 'lucide-react'
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { CompetitorCard } from "@/components/competitor-card"
-import { CompetitorTable } from "@/components/competitor-table"
-import { CompetitorModal } from "@/components/competitor-modal"
-import { AddCompetitorModal } from "@/components/add-competitor-modal"
-import { FilterSidebar } from "@/components/filter-sidebar"
+import { useState, useMemo, useEffect } from "react";
+import {
+  LayoutGrid,
+  List,
+  Search,
+  SlidersHorizontal,
+  Plus,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { CompetitorCard } from "@/components/competitor-card";
+import { CompetitorTable } from "@/components/competitor-table";
+import { CompetitorModal } from "@/components/competitor-modal";
+import { AddCompetitorModal } from "@/components/add-competitor-modal";
+import { FilterSidebar } from "@/components/filter-sidebar";
 
 export type Competitor = {
-  id: string
-  name: string
-  logo: string
-  tagline: string
-  brandPositioning: "premium" | "budget" | "niche"
-  avgPriceRange: string
-  promotionFrequency: "high" | "medium" | "low"
-  avgRating: number
-  trackedProducts: number
-  description: string
-  followers?: number
-  storeUrl?: string
-  feedback?: string | null
-  firstTenItems?: Array<{ title: string | null; link: string | null }>
-  lastChecked?: string
-}
+  id: string;
+  name: string;
+  logo: string;
+  tagline: string;
+  brandPositioning: "premium" | "budget" | "niche";
+  avgPriceRange: string;
+  promotionFrequency: "high" | "medium" | "low";
+  avgRating: number;
+  trackedProducts: number;
+  description: string;
+  followers?: number;
+  storeUrl?: string;
+  feedback?: string | null;
+  firstTenItems?: Array<{ title: string | null; link: string | null }>;
+  lastChecked?: string;
+};
 
-const mockCompetitors: Competitor[] = []
-
-type SortOption = "price-low" | "price-high" | "rating" | "promotion" | "products"
+type SortOption =
+  | "price-low"
+  | "price-high"
+  | "rating"
+  | "promotion"
+  | "products";
 
 export default function CompetitorsPage() {
-  const [viewMode, setViewMode] = useState<"grid" | "table">("grid")
-  const [searchQuery, setSearchQuery] = useState("")
-  const [sortBy, setSortBy] = useState<SortOption>("rating")
-  const [selectedCompetitor, setSelectedCompetitor] = useState<Competitor | null>(null)
-  const [showFilters, setShowFilters] = useState(false)
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [competitors, setCompetitors] = useState<Competitor[]>(mockCompetitors)
-  const [isAddingCompetitor, setIsAddingCompetitor] = useState(false)
-  
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<SortOption>("rating");
+  const [selectedCompetitor, setSelectedCompetitor] =
+    useState<Competitor | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [competitors, setCompetitors] = useState<Competitor[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAddingCompetitor, setIsAddingCompetitor] = useState(false);
+
   // Filter states
-  const [brandPositioningFilters, setBrandPositioningFilters] = useState<string[]>([])
-  const [minRating, setMinRating] = useState(0)
-  const [promotionFrequencyFilters, setPromotionFrequencyFilters] = useState<string[]>([])
+  const [brandPositioningFilters, setBrandPositioningFilters] = useState<
+    string[]
+  >([]);
+  const [minRating, setMinRating] = useState(0);
+  const [promotionFrequencyFilters, setPromotionFrequencyFilters] = useState<
+    string[]
+  >([]);
+
+  // Fetch competitors from API
+  useEffect(() => {
+    const fetchCompetitors = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch("/api/competitors");
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch competitors");
+        }
+
+        const result = await response.json();
+        if (result.success && result.data) {
+          setCompetitors(result.data);
+        }
+      } catch (error) {
+        console.error("Error fetching competitors:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCompetitors();
+  }, []);
 
   const filteredAndSortedCompetitors = useMemo(() => {
-    let result = [...competitors]
+    let result = [...competitors];
 
     // Search filter
     if (searchQuery) {
@@ -56,81 +96,104 @@ export default function CompetitorsPage() {
         (c) =>
           c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           c.tagline.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      );
     }
 
     // Brand positioning filter
     if (brandPositioningFilters.length > 0) {
-      result = result.filter((c) => brandPositioningFilters.includes(c.brandPositioning))
+      result = result.filter((c) =>
+        brandPositioningFilters.includes(c.brandPositioning)
+      );
     }
 
     // Min rating filter
     if (minRating > 0) {
-      result = result.filter((c) => c.avgRating >= minRating)
+      result = result.filter((c) => c.avgRating >= minRating);
     }
 
     // Promotion frequency filter
     if (promotionFrequencyFilters.length > 0) {
-      result = result.filter((c) => promotionFrequencyFilters.includes(c.promotionFrequency))
+      result = result.filter((c) =>
+        promotionFrequencyFilters.includes(c.promotionFrequency)
+      );
     }
 
     // Sorting
     result.sort((a, b) => {
       switch (sortBy) {
         case "price-low":
-          return parseInt(a.avgPriceRange.split("-")[0].replace(/\D/g, "")) - 
-                 parseInt(b.avgPriceRange.split("-")[0].replace(/\D/g, ""))
+          return (
+            parseInt(a.avgPriceRange.split("-")[0].replace(/\D/g, "")) -
+            parseInt(b.avgPriceRange.split("-")[0].replace(/\D/g, ""))
+          );
         case "price-high":
-          return parseInt(b.avgPriceRange.split("-")[1].replace(/\D/g, "")) - 
-                 parseInt(a.avgPriceRange.split("-")[1].replace(/\D/g, ""))
+          return (
+            parseInt(b.avgPriceRange.split("-")[1].replace(/\D/g, "")) -
+            parseInt(a.avgPriceRange.split("-")[1].replace(/\D/g, ""))
+          );
         case "rating":
-          return b.avgRating - a.avgRating
+          return b.avgRating - a.avgRating;
         case "promotion":
-          const promoOrder = { high: 3, medium: 2, low: 1 }
-          return promoOrder[b.promotionFrequency] - promoOrder[a.promotionFrequency]
+          const promoOrder = { high: 3, medium: 2, low: 1 };
+          return (
+            promoOrder[b.promotionFrequency] - promoOrder[a.promotionFrequency]
+          );
         case "products":
-          return b.trackedProducts - a.trackedProducts
+          return b.trackedProducts - a.trackedProducts;
         default:
-          return 0
+          return 0;
       }
-    })
+    });
 
-    return result
-  }, [searchQuery, sortBy, brandPositioningFilters, minRating, promotionFrequencyFilters, competitors])
+    return result;
+  }, [
+    searchQuery,
+    sortBy,
+    brandPositioningFilters,
+    minRating,
+    promotionFrequencyFilters,
+    competitors,
+  ]);
 
   const handleAddCompetitor = async (url: string, sellerInfo?: any) => {
     try {
-      // Extract rating from feedback (e.g., "4.8 out of 5" or "4.8(1,234)")
-      const extractRating = (feedback: string | null): number => {
-        if (!feedback) return 0
-        const match = feedback.match(/(\d+\.?\d*)/)
-        return match ? parseFloat(match[1]) : 0
+      setIsAddingCompetitor(true);
+
+      const response = await fetch("/api/competitors/add", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to add competitor");
       }
 
-      const newCompetitor: Competitor = {
-        id: Date.now().toString(),
-        name: sellerInfo?.seller_name || "Unknown Seller",
-        logo: sellerInfo?.seller_logo || "/placeholder.svg",
-        tagline: "",
-        brandPositioning: "premium",
-        avgPriceRange: "$0-$0",
-        promotionFrequency: "medium",
-        avgRating: extractRating(sellerInfo?.feedback),
-        trackedProducts: sellerInfo?.items_sold || 0,
-        description: sellerInfo?.overview || "",
-        followers: sellerInfo?.followers || 0,
-        storeUrl: sellerInfo?.store_url || url,
-        feedback: sellerInfo?.feedback || null,
-        firstTenItems: sellerInfo?.first_10_items || [],
-        lastChecked: sellerInfo?.last_checked || new Date().toISOString()
+      const result = await response.json();
+
+      if (result.success) {
+        // Refresh competitors list
+        const fetchResponse = await fetch("/api/competitors");
+        if (fetchResponse.ok) {
+          const fetchResult = await fetchResponse.json();
+          if (fetchResult.success && fetchResult.data) {
+            setCompetitors(fetchResult.data);
+          }
+        }
+        setShowAddModal(false);
       }
-      
-      setCompetitors([...competitors, newCompetitor])
-      setShowAddModal(false)
     } catch (error) {
-      console.error("Failed to add competitor:", error)
+      console.error("Failed to add competitor:", error);
+      alert(
+        error instanceof Error ? error.message : "Failed to add competitor"
+      );
+    } finally {
+      setIsAddingCompetitor(false);
     }
-  }
+  };
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -152,9 +215,13 @@ export default function CompetitorsPage() {
         <div className="border-b border-border bg-card p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold text-foreground">Competitors</h1>
+              <h1 className="text-3xl font-bold text-foreground">
+                Competitors
+              </h1>
               <p className="text-muted-foreground mt-1">
-                {filteredAndSortedCompetitors.length} competitors tracked
+                {isLoading
+                  ? "Loading..."
+                  : `${filteredAndSortedCompetitors.length} competitors tracked`}
               </p>
             </div>
 
@@ -224,9 +291,17 @@ export default function CompetitorsPage() {
 
         {/* Content Area */}
         <div className="flex-1 overflow-auto p-6">
-          {filteredAndSortedCompetitors.length === 0 ? (
+          {isLoading ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
-              <p className="text-muted-foreground text-lg">No competitors found</p>
+              <p className="text-muted-foreground text-lg">
+                Loading competitors...
+              </p>
+            </div>
+          ) : filteredAndSortedCompetitors.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <p className="text-muted-foreground text-lg">
+                No competitors found
+              </p>
               <p className="text-muted-foreground text-sm mt-2">
                 Try adjusting your filters or search query
               </p>
@@ -266,5 +341,5 @@ export default function CompetitorsPage() {
         isLoading={isAddingCompetitor}
       />
     </div>
-  )
+  );
 }
