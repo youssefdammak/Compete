@@ -1,286 +1,223 @@
 import { NextRequest, NextResponse } from "next/server";
-import { BrowserSDK } from "@/scripts/sdk/sdk.js";
-import { chromium } from "playwright";
+import { getDb } from "@/lib/mongodb";
+import { scrapeEbayProduct } from "@/scripts/get_product_info_2";
 
 export const runtime = "nodejs";
 
-const MAX_TIMEOUT = 20000; // Reduced from 45000 to 20000 (20 seconds)
-const SELECTOR_TIMEOUT = 10000; // Separate shorter timeout for selectors
-
-function parseCompact(str: string | null): number | null {
-  if (!str) return null;
-  const s = str.toUpperCase();
-  if (s.endsWith("K")) return Number(s.replace("K", "")) * 1000;
-  if (s.endsWith("M")) return Number(s.replace("M", "")) * 1_000_000;
-  const numMatch = str.replace(/,/g, "").match(/[\d.]+/);
-  return numMatch ? Number(numMatch[0]) : null;
-}
-
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function scrapeEbayProduct(itemUrl: string) {
-  const sdk = new BrowserSDK(process.env.BROWSER_API_KEY!);
-  let browser: any = null;
-
+// GET - Fetch all products
+export async function GET(request: NextRequest) {
   try {
-    console.log("💻 Creating Browser.cash session...");
-    const session = await sdk.createSession({ region: "gcp-usc1-1" });
-    const cdp = await sdk.getBrowserCDPUrl();
+    const db = await getDb();
+    const collection = db.collection("products");
 
-    console.log("🔗 Connecting Playwright to Browser.cash...");
-    browser = await chromium.connectOverCDP(cdp);
-    const context = await browser.newContext({
-      viewport: { width: 1400, height: 900 },
-      userAgent:
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121 Safari/537.36",
-      javaScriptEnabled: true,
-      locale: "en-CA",
+    const products = await collection
+      .find({})
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    // Transform MongoDB documents to match the frontend Product type
+    const formattedProducts = products.map((product) => ({
+      id: product._id.toString(),
+      name: product.name || product.title || "Unknown Product",
+      competitor: product.competitor || "Unknown",
+      currentPrice: product.currentPrice || product.price || 0,
+      originalPrice: product.originalPrice || null,
+      stock: product.stock || determineStockStatus(product.quantity_available),
+      rating: product.rating || 0,
+      reviewCount: product.reviewCount || product.total_sold_listing || 0,
+      isDiscounted: product.isDiscounted || false,
+      discountPercent: product.discountPercent || null,
+      image:
+        product.image ||
+        (product.images && product.images[0]) ||
+        "/placeholder.svg",
+      priceHistory: product.priceHistory || [
+        product.currentPrice || product.price || 0,
+      ],
+      category: product.category || "Uncategorized",
+      lastUpdated:
+        product.lastUpdated || product.timestamp || new Date().toISOString(),
+      description: product.description || "",
+    }));
+
+    return NextResponse.json({
+      success: true,
+      data: formattedProducts,
     });
-    const page = await context.newPage();
-    page.setDefaultTimeout(MAX_TIMEOUT);
-
-    console.log("🌐 Loading product URL:", itemUrl);
-    try {
-      await page.goto(itemUrl, {
-        waitUntil: "domcontentloaded",
-        timeout: MAX_TIMEOUT,
-      });
-      // Reduced timeout and make it non-blocking
-      await page
-        .waitForSelector("h1[itemprop='name']", {
-          timeout: SELECTOR_TIMEOUT,
-        })
-        .catch(() => {
-          console.warn("⚠ Title selector not found, continuing...");
-        });
-    } catch {
-      console.warn("⚠ Navigation timeout, continuing anyway…");
-    }
-
-    await delay(50); // Reduced from 200ms to 50ms
-
-    // Faster scroll - reduced delay per viewport
-    await page.evaluate(async () => {
-      const viewportHeight = window.innerHeight;
-      const totalHeight = document.body.scrollHeight;
-      for (let y = 0; y < totalHeight; y += viewportHeight) {
-        window.scrollTo(0, y);
-        await new Promise((r) => setTimeout(r, 20)); // Reduced from 50ms to 20ms
-      }
-    });
-    await delay(50); // Reduced from 200ms to 50ms
-
-    // Close popups - parallel check instead of sequential
-    const popupSelectors = [
-      'button:has-text("Continue")',
-      'button:has-text("No Thanks")',
-      'button[aria-label="Close"]',
-      ".overlay-close",
-    ];
-    for (const sel of popupSelectors) {
-      try {
-        const el = await page.$(sel);
-        if (el) {
-          console.log("🟡 Closing popup →", sel);
-          await el.click({ force: true });
-          await delay(50); // Reduced from 200ms to 50ms
-        }
-      } catch {}
-    }
-
-    // Detect bot check
-    const botCheck = await page.$("text='Check your browser before accessing'");
-    if (botCheck) {
-      console.log(
-        "⚠ eBay blocked automated access. Use a different session/IP."
-      );
-      return null;
-    }
-
-    // --- Scrape product fields ---
-    const title =
-      (await page
-        .$eval("h1[itemprop='name']", (el) => el.textContent?.trim())
-        .catch(() => null)) ||
-      (await page
-        .$eval('div[data-testid="x-item-title"] h1 span', (el) =>
-          el.textContent?.trim()
-        )
-        .catch(() => null));
-
-    const priceStr =
-      (await page
-        .$eval('span[itemprop="price"]', (el) => el.textContent)
-        .catch(() => null)) ||
-      (await page
-        .$eval(
-          'div[data-testid="x-price-primary"] span',
-          (el) => el.textContent
-        )
-        .catch(() => null));
-
-    let price: number | null = null;
-    let currency: string | null = null;
-
-    if (priceStr) {
-      const numMatch = priceStr.replace(/,/g, "").match(/[\d.]+/);
-      price = numMatch ? Number(numMatch[0]) : null;
-      const currencyMatch = priceStr.match(/^([^\d]*)/);
-      if (currencyMatch) {
-        const curr = currencyMatch[1].trim();
-        if (curr.includes("US") || (curr.includes("$") && curr.includes("US")))
-          currency = "USD";
-        else if (
-          curr.includes("C") ||
-          (curr.includes("$") && curr.includes("C"))
-        )
-          currency = "CAD";
-        else currency = curr || null;
-      }
-    }
-
-    const shippingStr =
-      (await page
-        .$eval("span[data-testid='shipping-cost']", (el) => el.textContent)
-        .catch(() => null)) ||
-      (await page
-        .$eval(
-          "div.ux-labels-values--shipping span.ux-textspans--BOLD",
-          (el) => el.textContent
-        )
-        .catch(() => "0"));
-    const shipping_cost = shippingStr?.toLowerCase().includes("free")
-      ? 0
-      : parseCompact(shippingStr);
-
-    const condition =
-      (await page
-        .$eval(
-          'div[data-testid="x-item-condition"] div.x-item-condition-text span.ux-textspans',
-          (el) => el.textContent?.trim()
-        )
-        .catch(() => null)) ||
-      (await page
-        .$eval('div[itemprop="itemCondition"]', (el) => el.textContent?.trim())
-        .catch(() => null));
-
-    const quantityAvailable =
-      (await page
-        .$eval('span[itemprop="inventoryLevel"]', (el) =>
-          parseInt(el.textContent || "0")
-        )
-        .catch(() => null)) ||
-      (await page
-        .$eval(
-          'div[data-testid="x-quantity"] span.ux-textspans--SECONDARY',
-          (el) => {
-            const match = (el.textContent || "").match(/\d+/);
-            return match ? Number(match[0]) : null;
-          }
-        )
-        .catch(() => null));
-
-    const totalSold =
-      (await page
-        .$eval('span[itemprop="soldQuantity"]', (el) => {
-          const match = (el.textContent || "").match(/[\d,]+/);
-          return match ? Number(match[0].replace(/,/g, "")) : null;
-        })
-        .catch(() => null)) ||
-      (await page
-        .$eval(
-          'div[data-testid="x-quantity"] span.ux-textspans--BOLD',
-          (el) => {
-            const match = (el.textContent || "").match(/\d+/);
-            return match ? Number(match[0]) : null;
-          }
-        )
-        .catch(() => null));
-
-    const image =
-      (await page
-        .$eval("img[itemprop='image']", (el) => el.getAttribute("src"))
-        .catch(() => null)) ||
-      (await page
-        .$eval("div.ux-image-carousel-container img", (el) =>
-          el.getAttribute("src")
-        )
-        .catch(() => null));
-
-    const result = {
-      product: {
-        title,
-        ebay_item_id: itemUrl.split("/itm/")[1]?.split("/")[0] || null,
-        product_url: itemUrl,
-        price,
-        currency,
-        shipping_cost,
-        condition,
-        quantity_available: quantityAvailable,
-        total_sold_listing: totalSold,
-        images: image ? [image] : [],
-      },
-      timestamp: new Date().toISOString(),
-    };
-
-    console.log("✅ Product scrape complete:", result);
-
-    return result;
   } catch (error) {
-    console.error("❌ Error during scraping:", error);
-    throw error;
-  } finally {
-    // Cleanup: close browser and end session
-    try {
-      if (browser) {
-        await browser.close();
-      }
-    } catch (err) {
-      console.warn("⚠ Error closing browser:", err);
-    }
-    try {
-      await sdk.endSession();
-    } catch (err) {
-      console.warn("⚠ Error ending session:", err);
-    }
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { productUrl } = body;
-
-    if (!productUrl) {
-      return NextResponse.json(
-        { error: "Missing required field: productUrl" },
-        { status: 400 }
-      );
-    }
-
-    const result = await scrapeEbayProduct(productUrl);
-
-    if (!result) {
-      return NextResponse.json(
-        {
-          error:
-            "Failed to scrape product - bot check detected or product not found",
-        },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json(result, { status: 200 });
-  } catch (error) {
-    console.error("Error scraping product:", error);
+    console.error("Error fetching products:", error);
     return NextResponse.json(
       {
-        error: "Failed to scrape product",
-        message: error instanceof Error ? error.message : "Unknown error",
+        error:
+          error instanceof Error ? error.message : "Failed to fetch products",
       },
       { status: 500 }
     );
   }
+}
+
+// POST - Create a new product
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { competitor, productUrl, scrapedData } = body;
+
+    if (!competitor) {
+      return NextResponse.json(
+        { error: "Missing required field: competitor" },
+        { status: 400 }
+      );
+    }
+
+    let scraped: any;
+
+    // If scrapedData is provided, use it; otherwise scrape from productUrl
+    if (scrapedData && scrapedData.product) {
+      scraped = scrapedData.product;
+    } else if (productUrl) {
+      // Scrape the product using get_product_info_2
+      const scrapeResult = await scrapeEbayProduct(productUrl);
+
+      if (!scrapeResult || !scrapeResult.product) {
+        return NextResponse.json(
+          {
+            error:
+              "Failed to scrape product - bot check detected or product not found",
+          },
+          { status: 500 }
+        );
+      }
+
+      scraped = scrapeResult.product;
+    } else {
+      return NextResponse.json(
+        { error: "Missing required field: productUrl or scrapedData" },
+        { status: 400 }
+      );
+    }
+
+    // Determine stock status
+    const stockStatus = determineStockStatus(scraped.quantity_available);
+
+    // Calculate discount if original price exists
+    const isDiscounted =
+      scraped.originalPrice && scraped.price
+        ? scraped.originalPrice > scraped.price
+        : false;
+    const discountPercent =
+      isDiscounted && scraped.originalPrice && scraped.price
+        ? Math.round(
+            ((scraped.originalPrice - scraped.price) / scraped.originalPrice) *
+              100
+          )
+        : null;
+
+    // Prepare product document
+    const product = {
+      competitor: competitor,
+      name: scraped.title || scraped.name || "Unknown Product",
+      title: scraped.title,
+      ebay_item_id: scraped.ebay_item_id,
+      product_url: scraped.product_url,
+      currentPrice: scraped.price || 0,
+      price: scraped.price,
+      originalPrice: scraped.originalPrice || null,
+      currency: scraped.currency || "USD",
+      shipping_cost: scraped.shipping_cost || 0,
+      condition: scraped.condition,
+      quantity_available: scraped.quantity_available,
+      total_sold_listing: scraped.total_sold_listing,
+      stock: stockStatus,
+      rating: scraped.rating || 0,
+      reviewCount: scraped.total_sold_listing || scraped.review_count || 0,
+      isDiscounted: isDiscounted,
+      discountPercent: discountPercent,
+      image: scraped.images && scraped.images[0] ? scraped.images[0] : null,
+      images: scraped.images || [],
+      category: scraped.category || "Uncategorized",
+      description: scraped.description || "",
+      priceHistory: [scraped.price || 0],
+      lastUpdated: new Date().toISOString(),
+      timestamp: scrapedData?.timestamp || new Date().toISOString(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    // Save to MongoDB
+    const db = await getDb();
+    const collection = db.collection("products");
+
+    // Check if product already exists by product_url or ebay_item_id
+    const existing = await collection.findOne({
+      $or: [
+        { product_url: product.product_url },
+        { ebay_item_id: product.ebay_item_id },
+      ],
+    });
+
+    if (existing) {
+      // Update existing product
+      await collection.updateOne(
+        { _id: existing._id },
+        {
+          $set: {
+            ...product,
+            updatedAt: new Date(),
+          },
+          $push: {
+            priceHistory: {
+              $each: [product.currentPrice],
+              $slice: -30, // Keep last 30 price points
+            },
+          },
+        }
+      );
+
+      return NextResponse.json({
+        success: true,
+        message: "Product updated successfully",
+        data: {
+          id: existing._id.toString(),
+          ...product,
+        },
+      });
+    } else {
+      // Insert new product
+      const result = await collection.insertOne(product);
+
+      return NextResponse.json({
+        success: true,
+        message: "Product added successfully",
+        data: {
+          id: result.insertedId.toString(),
+          ...product,
+        },
+      });
+    }
+  } catch (error) {
+    console.error("Error creating product:", error);
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to create product",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// Helper function to determine stock status
+function determineStockStatus(
+  quantity: number | null | undefined
+): "In Stock" | "Low Stock" | "Out of Stock" {
+  if (quantity === null || quantity === undefined) {
+    return "In Stock"; // Default assumption
+  }
+  if (quantity === 0) {
+    return "Out of Stock";
+  }
+  if (quantity < 10) {
+    return "Low Stock";
+  }
+  return "In Stock";
 }
