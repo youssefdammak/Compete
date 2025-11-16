@@ -29,6 +29,10 @@ export default function AddProductModal({
     null
   );
   const [productUrl, setProductUrl] = useState("");
+  const [topItems, setTopItems] = useState<{ title: string; link: string }[]>(
+    []
+  );
+  const [selectedTopItem, setSelectedTopItem] = useState<string>("manual");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [competitors, setCompetitors] = useState<Competitor[]>([]);
@@ -96,6 +100,20 @@ export default function AddProductModal({
     setSelectedCompetitor(compName);
     setStep(2);
     setError(null);
+
+    // populate top items synchronously from already-fetched competitors
+    const comp = competitors.find((c) => c.name === compName);
+    if (comp && Array.isArray((comp as any).firstTenItems)) {
+      const items = (comp as any).firstTenItems.map((it: any) => ({
+        title: it.title,
+        link: it.link,
+      }));
+      setTopItems(items);
+    } else {
+      setTopItems([]);
+    }
+    setSelectedTopItem("manual");
+    setProductUrl("");
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -235,16 +253,74 @@ export default function AddProductModal({
 
               <div>
                 <Label htmlFor="product-url">Product URL</Label>
+                {topItems.length > 0 && (
+                  <div className="mt-3">
+                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                      Select from top products
+                    </div>
+                    <div className="space-y-1 max-h-56 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedTopItem("manual");
+                          setProductUrl("");
+                        }}
+                        disabled={isSubmitting}
+                        className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
+                          selectedTopItem === "manual"
+                            ? "border-primary bg-primary/10 text-foreground font-semibold"
+                            : "border-border bg-muted/30 hover:bg-muted/50 text-foreground"
+                        }`}
+                      >
+                        <div className="text-sm">✏️ Manual URL</div>
+                      </button>
+
+                      <div className="h-px bg-border my-1"></div>
+
+                      {topItems.map((it, idx) => (
+                        <button
+                          key={it.link}
+                          type="button"
+                          onClick={() => {
+                            setSelectedTopItem(it.link);
+                            setProductUrl(it.link);
+                          }}
+                          disabled={isSubmitting}
+                          className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
+                            selectedTopItem === it.link
+                              ? "border-primary bg-primary/10 shadow-md"
+                              : "border-transparent bg-muted/20 hover:bg-muted/40 hover:border-border/50"
+                          }`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <span className="text-xs font-bold text-primary flex-shrink-0 mt-0.5">
+                              {idx + 1}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm truncate leading-tight">
+                                {it.title}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <Input
                   id="product-url"
                   placeholder="https://www.ebay.ca/itm/..."
                   value={productUrl}
-                  onChange={(e) => setProductUrl(e.target.value)}
+                  onChange={(e) => {
+                    setProductUrl(e.target.value);
+                    setSelectedTopItem("manual");
+                  }}
                   disabled={isSubmitting}
-                  className="mt-2"
+                  className="mt-3"
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Paste the product link to scrape details.
+                <p className="text-xs text-muted-foreground mt-2">
+                  Pick a top product or paste a custom URL
                 </p>
               </div>
 
