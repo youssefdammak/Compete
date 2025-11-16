@@ -1,20 +1,12 @@
 'use client'
-
+import { Competitor } from '@/app/interfaces/Competitor'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { TrendingUp, ChartLine } from 'lucide-react'
 
-interface Competitor {
-  id: string
-  name: string
-  logo: string
-  avgRating?: number
-  followers?: number
-  trackedProducts?: number
-  lastChecked?: string
-}
+
 
 export default function TrendsPage() {
   const [competitors, setCompetitors] = useState<Competitor[]>([])
@@ -28,6 +20,7 @@ export default function TrendsPage() {
           const result = await response.json()
           if (result.data) {
             setCompetitors(result.data)
+            console.log("Fetched Competitors:", result.data);
           }
         }
       } catch (error) {
@@ -72,7 +65,7 @@ export default function TrendsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {competitors.map((competitor) => (
-            <Link key={competitor.id} href={`/trends/${competitor.id}`}>
+            <Link key={competitor._id} href={`/trends/${competitor._id}`}>
               <Card className="p-6 border-border bg-card hover:shadow-lg transition-shadow cursor-pointer h-full">
                 <div className="flex items-start gap-4 mb-4">
                   {competitor.logo && (
@@ -107,8 +100,8 @@ export default function TrendsPage() {
                   <p className="text-xs text-muted-foreground">
                     Last updated:{' '}
                     {competitor.lastChecked
-                      ? new Date(competitor.lastChecked).toLocaleDateString()
-                      : 'Never'}
+  ? new Date(competitor.lastChecked).toLocaleDateString()
+  : 'Never'}
                   </p>
                 </div>
 

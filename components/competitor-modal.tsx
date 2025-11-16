@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { Competitor } from "@/app/competitors/page";
+import { Competitor } from "@/app/interfaces/Competitor";
 import { useState } from "react";
 
 interface CompetitorModalProps {
@@ -31,15 +31,8 @@ export function CompetitorModal({
   const handleRefreshCompetitor = async () => {
     setIsRefreshing(true);
     try {
-      const response = await fetch("/api/competitors/refresh", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          id: competitor.id,
-          storeUrl: competitor.storeUrl,
-        }),
+      const response = await fetch(`/api/competitors?id=${competitor._id}`, {
+        method: "PATCH"
       });
 
       if (response.ok) {
@@ -64,7 +57,7 @@ export function CompetitorModal({
   const handleConfirmDelete = async () => {
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/competitors?id=${competitor.id}`, {
+      const response = await fetch(`/api/competitors?id=${competitor._id}`, {
         method: "DELETE",
       });
 

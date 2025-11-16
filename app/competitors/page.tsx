@@ -16,23 +16,7 @@ import { CompetitorModal } from "@/components/competitor-modal";
 import { AddCompetitorModal } from "@/components/add-competitor-modal";
 import { FilterSidebar } from "@/components/filter-sidebar";
 
-export type Competitor = {
-  id: string;
-  name: string;
-  logo: string;
-  tagline: string;
-  brandPositioning: "premium" | "budget" | "niche";
-  avgPriceRange: string;
-  promotionFrequency: "high" | "medium" | "low";
-  avgRating: number;
-  trackedProducts: number;
-  description: string;
-  followers?: number;
-  storeUrl?: string;
-  feedback?: string | null;
-  firstTenItems?: Array<{ title: string | null; link: string | null }>;
-  lastChecked?: string;
-};
+import { Competitor } from "@/app/interfaces/Competitor";
 
 type SortOption =
   | "price-low"
@@ -308,9 +292,9 @@ export default function CompetitorsPage() {
             </div>
           ) : viewMode === "grid" ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {filteredAndSortedCompetitors.map((competitor) => (
+              {filteredAndSortedCompetitors.map((competitor, idx) => (
                 <CompetitorCard
-                  key={competitor.id}
+                  key={idx}
                   competitor={competitor}
                   onClick={() => setSelectedCompetitor(competitor)}
                 />

@@ -225,9 +225,9 @@ export default function AddProductModal({
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-                  {filtered.map((comp) => (
+                  {filtered.map((comp, idx) => (
                     <button
-                      key={comp.id}
+                      key={idx}
                       type="button"
                       onClick={() => handleSelectCompetitor(comp.name)}
                       className="text-left rounded-lg border border-border p-3 hover:border-primary/50 transition-colors"
@@ -279,7 +279,7 @@ export default function AddProductModal({
 
                       {topItems.map((it, idx) => (
                         <button
-                          key={it.link}
+                          key={idx}
                           type="button"
                           onClick={() => {
                             setSelectedTopItem(it.link);
