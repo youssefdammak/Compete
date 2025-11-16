@@ -3,53 +3,36 @@ import { getDb } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import { scrapeEbayProduct } from "@/scripts/get_product_info_2";
 import { getSellerInfo } from "./get_seller_info";
-import pLimit from "p-limit";
+
 // -------------------------------
 // Cron job: refresh competitors & products every 2 minutes
 // -------------------------------
-// Limit concurrency
-const CONCURRENCY_LIMIT = 5;
-const limit = pLimit(CONCURRENCY_LIMIT);
-
 cron.schedule("*/1 * * * *", async () => {
   const db = await getDb();
 
-  // -------------------------------
-  // Refresh competitors (queued)
-  // -------------------------------
+  // Refresh competitors
   const competitors = await db.collection("competitors").find({}).toArray();
+  for (const comp of competitors) {
+    try {
+      await refreshCompetitor(comp._id.toString());
+      console.log(`Refreshed competitor ${comp._id}`);
+    } catch (err) {
+      console.error(`Failed to refresh competitor ${comp._id}:`, err);
+    }
+  }
 
-  await Promise.all(
-    competitors.map((comp) =>
-      limit(async () => {
-        try {
-          await refreshCompetitor(comp._id.toString());
-          console.log(`Refreshed competitor ${comp._id}`);
-        } catch (err) {
-          console.error(`Failed to refresh competitor ${comp._id}:`, err);
-        }
-      })
-    )
-  );
-
-  // -------------------------------
-  // Refresh products (queued)
-  // -------------------------------
+  // Refresh products
   const products = await db.collection("products").find({}).toArray();
-
-  await Promise.all(
-    products.map((prod) =>
-      limit(async () => {
-        try {
-          await refreshProduct(prod._id.toString());
-          console.log(`Refreshed product ${prod._id}`);
-        } catch (err) {
-          console.error(`Failed to refresh product ${prod._id}:`, err);
-        }
-      })
-    )
-  );
+  for (const prod of products) {
+    try {
+      await refreshProduct(prod._id.toString());
+      console.log(`Refreshed product ${prod._id}`);
+    } catch (err) {
+      console.error(`Failed to refresh product ${prod._id}:`, err);
+    }
+  }
 });
+
 // -------------------------------
 // Competitor refresh
 // -------------------------------
