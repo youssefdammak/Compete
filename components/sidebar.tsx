@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Activity, TrendingUp, Settings, Bell, Users, Package } from 'lucide-react'
+import { LayoutDashboard, Activity, TrendingUp, Settings, Bell, Users, Package, Megaphone } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import { getAuth, signOut } from 'firebase/auth'
@@ -40,6 +40,11 @@ const navItems = [
     href: '/alerts',
     icon: Bell,
     badge: '23'
+  },
+  {
+    label: 'Ad Funnels',
+    href: '/ad-funnels',
+    icon: Megaphone,
   },
   {
     label: 'Settings',
