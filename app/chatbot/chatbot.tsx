@@ -94,7 +94,7 @@ export default function Chatbot() {
   };
 
   return (
-    <div className="flex flex-col h-screen">
+    <>
       {!isOpen && (
         <div className="fixed bottom-4 right-4 z-50">
           <button
@@ -108,7 +108,7 @@ export default function Chatbot() {
       )}
 
       {isOpen && (
-        <div className="flex flex-col h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950">
+        <div className="fixed bottom-4 right-4 z-50 w-96 h-[600px] flex flex-col bg-gradient-to-br from-purple-50 via-white to-blue-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950 rounded-2xl shadow-2xl border border-purple-200/50 dark:border-zinc-700/50">
           {/* Header */}
           <div className="flex items-center justify-between gap-3 px-6 py-4 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-purple-100 dark:border-zinc-800">
             <div className="flex items-center gap-3">
@@ -257,6 +257,6 @@ export default function Chatbot() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

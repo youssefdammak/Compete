@@ -330,6 +330,23 @@ export default function CompetitorsPage() {
         <CompetitorModal
           competitor={selectedCompetitor}
           onClose={() => setSelectedCompetitor(null)}
+          onDelete={() => {
+            // Refresh competitors list
+            const fetchCompetitors = async () => {
+              try {
+                const response = await fetch("/api/competitors");
+                if (response.ok) {
+                  const result = await response.json();
+                  if (result.success && result.data) {
+                    setCompetitors(result.data);
+                  }
+                }
+              } catch (error) {
+                console.error("Error fetching competitors:", error);
+              }
+            };
+            fetchCompetitors();
+          }}
         />
       )}
 
