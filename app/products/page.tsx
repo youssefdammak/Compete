@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Grid3x3, List, SlidersHorizontal, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,145 +30,6 @@ export type Product = {
   description: string;
 };
 
-const mockProducts: Product[] = [
-  {
-    id: "1",
-    name: "Wireless Gaming Mouse Pro",
-    competitor: "TechElite",
-    currentPrice: 79.99,
-    originalPrice: 99.99,
-    stock: "In Stock",
-    rating: 4.8,
-    reviewCount: 1247,
-    isDiscounted: true,
-    discountPercent: 20,
-    image: "/wireless-gaming-mouse.png",
-    priceHistory: [99.99, 95.99, 89.99, 85.99, 82.99, 79.99],
-    category: "Gaming",
-    lastUpdated: "2 hours ago",
-    description:
-      "High-precision wireless gaming mouse with customizable RGB lighting and programmable buttons.",
-  },
-  {
-    id: "2",
-    name: "Mechanical Keyboard RGB",
-    competitor: "ValueTech",
-    currentPrice: 129.99,
-    stock: "In Stock",
-    rating: 4.6,
-    reviewCount: 892,
-    isDiscounted: false,
-    image: "/mechanical-keyboard-rgb.jpg",
-    priceHistory: [129.99, 129.99, 132.99, 129.99, 129.99, 129.99],
-    category: "Gaming",
-    lastUpdated: "5 hours ago",
-    description:
-      "Premium mechanical keyboard with hot-swappable switches and per-key RGB lighting.",
-  },
-  {
-    id: "3",
-    name: '4K Gaming Monitor 27"',
-    competitor: "GamerPro",
-    currentPrice: 399.99,
-    originalPrice: 499.99,
-    stock: "Low Stock",
-    rating: 4.9,
-    reviewCount: 2134,
-    isDiscounted: true,
-    discountPercent: 20,
-    image: "/4k-gaming-monitor.jpg",
-    priceHistory: [499.99, 479.99, 459.99, 439.99, 419.99, 399.99],
-    category: "Monitors",
-    lastUpdated: "1 hour ago",
-    description:
-      "Ultra-high resolution 4K monitor with 144Hz refresh rate and HDR support.",
-  },
-  {
-    id: "4",
-    name: "USB-C Docking Station",
-    competitor: "SmartHome Plus",
-    currentPrice: 159.99,
-    stock: "In Stock",
-    rating: 4.5,
-    reviewCount: 678,
-    isDiscounted: false,
-    image: "/usb-c-docking-station.jpg",
-    priceHistory: [159.99, 164.99, 159.99, 159.99, 162.99, 159.99],
-    category: "Accessories",
-    lastUpdated: "3 hours ago",
-    description:
-      "Multi-port USB-C hub with dual 4K display support and power delivery.",
-  },
-  {
-    id: "5",
-    name: "Wireless Earbuds Pro",
-    competitor: "TechElite",
-    currentPrice: 149.99,
-    originalPrice: 199.99,
-    stock: "In Stock",
-    rating: 4.7,
-    reviewCount: 3421,
-    isDiscounted: true,
-    discountPercent: 25,
-    image: "/wireless-earbuds.png",
-    priceHistory: [199.99, 189.99, 179.99, 169.99, 159.99, 149.99],
-    category: "Audio",
-    lastUpdated: "30 minutes ago",
-    description:
-      "Premium wireless earbuds with active noise cancellation and 8-hour battery life.",
-  },
-  {
-    id: "6",
-    name: "Portable SSD 2TB",
-    competitor: "BudgetBytes",
-    currentPrice: 189.99,
-    stock: "Out of Stock",
-    rating: 4.4,
-    reviewCount: 456,
-    isDiscounted: false,
-    image: "/portable-ssd.jpg",
-    priceHistory: [189.99, 194.99, 189.99, 189.99, 199.99, 189.99],
-    category: "Storage",
-    lastUpdated: "6 hours ago",
-    description:
-      "High-speed portable SSD with USB 3.2 Gen 2 interface for fast data transfers.",
-  },
-  {
-    id: "7",
-    name: "Smart Watch Series X",
-    competitor: "GamerPro",
-    currentPrice: 299.99,
-    originalPrice: 349.99,
-    stock: "In Stock",
-    rating: 4.6,
-    reviewCount: 1876,
-    isDiscounted: true,
-    discountPercent: 14,
-    image: "/smartwatch-lifestyle.png",
-    priceHistory: [349.99, 339.99, 329.99, 319.99, 309.99, 299.99],
-    category: "Wearables",
-    lastUpdated: "4 hours ago",
-    description:
-      "Advanced smartwatch with fitness tracking, heart rate monitor, and GPS.",
-  },
-  {
-    id: "8",
-    name: "Laptop Stand Aluminum",
-    competitor: "ValueTech",
-    currentPrice: 49.99,
-    stock: "In Stock",
-    rating: 4.3,
-    reviewCount: 234,
-    isDiscounted: false,
-    image: "/laptop-stand-aluminum.jpg",
-    priceHistory: [49.99, 52.99, 49.99, 49.99, 54.99, 49.99],
-    category: "Accessories",
-    lastUpdated: "8 hours ago",
-    description:
-      "Ergonomic aluminum laptop stand with adjustable height and angle.",
-  },
-];
-
 type ViewMode = "grid" | "list";
 type SortOption = "price-asc" | "price-desc" | "rating" | "recent";
 
@@ -178,6 +39,9 @@ export default function ProductsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterSidebarOpen, setFilterSidebarOpen] = useState(true);
   const [sortBy, setSortBy] = useState<SortOption>("recent");
+  const [addProductModalOpen, setAddProductModalOpen] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Filters
   const [selectedCompetitors, setSelectedCompetitors] = useState<string[]>([]);
@@ -193,11 +57,33 @@ export default function ProductsPage() {
     rating4Plus: false,
   });
 
-  // Add Product Modal
-  const [addProductModalOpen, setAddProductModalOpen] = useState(false);
+  // Fetch products from API
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch("/api/products");
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch products");
+        }
+
+        const result = await response.json();
+        if (result.success && result.data) {
+          setProducts(result.data);
+        }
+      } catch (error) {
+        console.error("Error fetching products:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
 
   // Filter and sort products
-  const filteredProducts = mockProducts.filter((product) => {
+  const filteredProducts = products.filter((product) => {
     // Search
     if (
       searchQuery &&
@@ -266,6 +152,21 @@ export default function ProductsPage() {
     }
   });
 
+  const handleAddProductSuccess = async () => {
+    // Refresh products list after adding
+    try {
+      const response = await fetch("/api/products");
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          setProducts(result.data);
+        }
+      }
+    } catch (error) {
+      console.error("Error refreshing products:", error);
+    }
+  };
+
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Filter Sidebar */}
@@ -291,7 +192,9 @@ export default function ProductsPage() {
             <div>
               <h1 className="text-3xl font-bold text-foreground">Products</h1>
               <p className="text-sm text-muted-foreground mt-1">
-                {sortedProducts.length} products found
+                {isLoading
+                  ? "Loading..."
+                  : `${sortedProducts.length} products found`}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -349,7 +252,13 @@ export default function ProductsPage() {
 
         {/* Products List */}
         <div className="flex-1 overflow-auto p-6">
-          {viewMode === "grid" ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center h-64 text-center">
+              <p className="text-muted-foreground text-lg">
+                Loading products...
+              </p>
+            </div>
+          ) : viewMode === "grid" ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {sortedProducts.map((product) => (
                 <ProductCard
@@ -371,7 +280,7 @@ export default function ProductsPage() {
             </div>
           )}
 
-          {sortedProducts.length === 0 && (
+          {!isLoading && sortedProducts.length === 0 && (
             <div className="flex flex-col items-center justify-center h-64 text-center">
               <p className="text-muted-foreground text-lg">No products found</p>
               <p className="text-sm text-muted-foreground mt-2">
@@ -394,11 +303,7 @@ export default function ProductsPage() {
       <AddProductModal
         open={addProductModalOpen}
         onClose={() => setAddProductModalOpen(false)}
-        onSuccess={() => {
-          console.log("Product added successfully");
-          // Refresh products list
-          // You might want to implement a refresh mechanism here
-        }}
+        onSuccess={handleAddProductSuccess}
       />
     </div>
   );
